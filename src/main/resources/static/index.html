@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f4f7f5">
+    <title>SnowClear — local snow-clearing requests</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
+    <style>
+        :root {
+            color-scheme: light;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: #18312d;
+            background: #f4f7f5;
+            font-synthesis: none;
+        }
+
+        * { box-sizing: border-box; }
+        body { margin: 0; min-width: 320px; }
+        button, input, textarea { font: inherit; }
+        button { cursor: pointer; }
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1.5rem;
+            padding: 1rem clamp(1rem, 4vw, 3.5rem);
+            background: #fff;
+            border-bottom: 1px solid #dfe8e4;
+        }
+        .brand { display: flex; align-items: center; gap: .75rem; }
+        .brand-mark {
+            display: grid;
+            place-items: center;
+            width: 2.8rem;
+            height: 2.8rem;
+            border-radius: .9rem;
+            color: white;
+            background: #176f5d;
+            font-size: 1.45rem;
+        }
+        .brand h1 { margin: 0; font-size: 1.2rem; letter-spacing: -.03em; }
+        .brand p { margin: .15rem 0 0; color: #61736e; font-size: .82rem; }
+        .nav { display: flex; gap: .5rem; }
+        .nav button, .secondary-button {
+            border: 1px solid #d7e2dd;
+            border-radius: .7rem;
+            padding: .65rem .95rem;
+            background: white;
+            color: #31534b;
+            font-weight: 650;
+        }
+        .nav button.active { border-color: #176f5d; background: #176f5d; color: white; }
+        .intro { padding: 1.35rem clamp(1rem, 4vw, 3.5rem) .5rem; }
+        .intro h2 { margin: 0; font-size: clamp(1.45rem, 3vw, 2rem); letter-spacing: -.04em; }
+        .intro p { margin: .4rem 0 0; color: #61736e; }
+        .workspace {
+            display: grid;
+            grid-template-columns: minmax(320px, .85fr) minmax(420px, 1.35fr);
+            gap: 1rem;
+            padding: 1rem clamp(1rem, 4vw, 3.5rem) 2rem;
+            align-items: start;
+        }
+        .card {
+            background: #fff;
+            border: 1px solid #e0e8e4;
+            border-radius: 1rem;
+            box-shadow: 0 8px 26px rgb(22 57 47 / 5%);
+        }
+        .panel { padding: 1.25rem; }
+        .panel h3, .map-heading h3 { margin: 0; font-size: 1.08rem; }
+        .panel-intro { margin: .4rem 0 1rem; color: #65756f; font-size: .9rem; line-height: 1.5; }
+        form { display: grid; gap: .85rem; }
+        .field { display: grid; gap: .35rem; }
+        label { color: #35534b; font-size: .83rem; font-weight: 700; }
+        input, textarea {
+            width: 100%;
+            border: 1px solid #cfdbd6;
+            border-radius: .65rem;
+            padding: .72rem .8rem;
+            color: #18312d;
+            background: #fff;
+        }
+        input:focus, textarea:focus { outline: 3px solid #cce9df; border-color: #27816c; }
+        textarea { min-height: 5.4rem; resize: vertical; }
+        .hint { margin: 0; color: #73817c; font-size: .78rem; line-height: 1.45; }
+        .primary-button {
+            border: 0;
+            border-radius: .7rem;
+            padding: .8rem 1rem;
+            background: #176f5d;
+            color: white;
+            font-weight: 750;
+        }
+        .primary-button:hover { background: #105b4c; }
+        .primary-button:disabled { cursor: wait; opacity: .65; }
+        .feedback { min-height: 1.2rem; margin: .2rem 0 0; color: #176f5d; font-size: .87rem; }
+        .feedback.error { color: #a33b2f; }
+        .map-card { overflow: hidden; }
+        .map-heading { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem 1.1rem; }
+        .map-heading span { color: #71817b; font-size: .8rem; }
+        #map { width: 100%; height: min(72vh, 760px); min-height: 460px; background: #e8efeb; }
+        .job-list { display: grid; gap: .55rem; margin: .9rem 0 1.1rem; }
+        .job-card {
+            width: 100%;
+            padding: .85rem;
+            border: 1px solid #dce6e1;
+            border-radius: .75rem;
+            background: #fbfdfc;
+            color: inherit;
+            text-align: left;
+        }
+        .job-card.selected { border-color: #26836d; box-shadow: 0 0 0 2px #d8efe7; }
+        .job-card strong { display: block; margin-bottom: .28rem; }
+        .job-card span { display: block; color: #65756f; font-size: .8rem; line-height: 1.4; }
+        .empty-state { padding: 1rem; border: 1px dashed #cbd9d3; border-radius: .75rem; color: #687a73; font-size: .88rem; line-height: 1.5; }
+        .order-details { border-top: 1px solid #e2eae6; padding-top: 1rem; }
+        .order-details h4 { margin: 0 0 .7rem; font-size: 1rem; }
+        .detail-line { margin: .4rem 0; color: #536960; font-size: .86rem; overflow-wrap: anywhere; }
+        .photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: .5rem; margin: .75rem 0 1rem; }
+        .photos img { width: 100%; height: 90px; object-fit: cover; border-radius: .55rem; background: #edf2ef; }
+        .claim-form { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e2eae6; }
+        [hidden] { display: none !important; }
+        footer { padding: 0 clamp(1rem, 4vw, 3.5rem) 1.5rem; color: #71817b; font-size: .78rem; }
+        @media (max-width: 850px) {
+            .workspace { grid-template-columns: 1fr; }
+            #map { height: 55vh; min-height: 360px; }
+        }
+        @media (max-width: 560px) {
+            .topbar { align-items: flex-start; flex-direction: column; }
+            .nav { width: 100%; }
+            .nav button { flex: 1; }
+            .map-heading { align-items: flex-start; flex-direction: column; gap: .3rem; }
+        }
+    </style>
+</head>
+<body>
+<header class="topbar">
+    <div class="brand">
+        <div class="brand-mark" aria-hidden="true">❄</div>
+        <div>
+            <h1>SnowClear</h1>
+            <p>Local snow-clearing, clearly marked</p>
+        </div>
+    </div>
+    <nav class="nav" aria-label="Main navigation">
+        <button id="newOrderTab" class="active" type="button">Request clearing</button>
+        <button id="jobsTab" type="button">Find a job</button>
+    </nav>
+</header>
+<section class="intro">
+    <h2>Make winter work easier.</h2>
+    <p>Mark exactly where snow needs to go, then share a few photos for context.</p>
+</section>
+<main class="workspace">
+    <section class="card panel" aria-label="Order and job panel">
+        <div id="createPanel">
+            <h3>Request snow clearing</h3>
+            <p class="panel-intro">Add your contact details and draw a closed outline around the area on the map.</p>
+            <form id="orderForm">
+                <div class="field">
+                    <label for="customerName">Your name</label>
+                    <input id="customerName" name="customerName" maxlength="100" autocomplete="name" required>
+                </div>
+                <div class="field">
+                    <label for="customerContact">Phone or email</label>
+                    <input id="customerContact" name="customerContact" maxlength="200" autocomplete="email" required>
+                </div>
+                <div class="field">
+                    <label for="address">Property address</label>
+                    <input id="address" name="address" maxlength="200" autocomplete="street-address" required>
+                </div>
+                <div class="field">
+                    <label for="notes">Instructions</label>
+                    <textarea id="notes" name="notes" maxlength="2000" placeholder="Gate access, surfaces, where to pile snow…"></textarea>
+                </div>
+                <div class="field">
+                    <label for="photos">Photos of the area</label>
+                    <input id="photos" name="photos" type="file" accept="image/jpeg,image/png,image/gif" multiple>
+                    <p class="hint">Up to 5 JPEG, PNG, or GIF images; 10 MB per image.</p>
+                </div>
+                <p id="boundaryHint" class="hint">No area drawn yet. Use the polygon tool on the map.</p>
+                <button id="submitOrder" class="primary-button" type="submit">Post clearing request</button>
+                <p id="createFeedback" class="feedback" role="status" aria-live="polite"></p>
+            </form>
+        </div>
+        <div id="jobsPanel" hidden>
+            <h3>Available jobs</h3>
+            <p class="panel-intro">Choose an open request to see its marked boundary and photos. The first clearer to claim it gets the job.</p>
+            <button id="refreshJobs" class="secondary-button" type="button">Refresh jobs</button>
+            <div id="jobList" class="job-list" aria-live="polite"></div>
+            <div id="jobDetail" class="order-details" hidden></div>
+            <p id="jobsFeedback" class="feedback" role="status" aria-live="polite"></p>
+        </div>
+    </section>
+    <section class="card map-card" aria-label="Map">
+        <div class="map-heading">
+            <h3 id="mapTitle">Draw the clearing area</h3>
+            <span id="mapHint">Use the polygon tool to mark a closed area</span>
+        </div>
+        <div id="map" role="application" aria-label="Map for marking or viewing snow-clearing areas"></div>
+    </section>
+</main>
+<footer>Prototype notice: names and contact details are not account-authenticated. Share only information needed to arrange the work.</footer>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+<script>
+    const createPanel = document.getElementById('createPanel');
+    const jobsPanel = document.getElementById('jobsPanel');
+    const createFeedback = document.getElementById('createFeedback');
+    const jobsFeedback = document.getElementById('jobsFeedback');
+    const jobList = document.getElementById('jobList');
+    const jobDetail = document.getElementById('jobDetail');
+    const boundaryHint = document.getElementById('boundaryHint');
+    let boundary = [];
+    let selectedOrderId = null;
+    let openOrders = [];
+
+    const map = L.map('map').setView([59.3293, 18.0686], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+    const drawingLayer = L.featureGroup().addTo(map);
+    const orderLayer = L.featureGroup().addTo(map);
+    const drawControl = new L.Control.Draw({
+        draw: {
+            polygon: { allowIntersection: false, showArea: true },
+            polyline: false,
+            rectangle: false,
+            circle: false,
+            marker: false,
+            circlemarker: false
+        },
+        edit: { featureGroup: drawingLayer, remove: true }
+    });
+    map.addControl(drawControl);
+
+    map.on(L.Draw.Event.CREATED, event => {
+        drawingLayer.clearLayers();
+        drawingLayer.addLayer(event.layer);
+        updateBoundary(event.layer);
+    });
+    map.on(L.Draw.Event.EDITED, event => event.layers.eachLayer(updateBoundary));
+    map.on(L.Draw.Event.DELETED, () => {
+        boundary = [];
+        boundaryHint.textContent = 'No area drawn yet. Use the polygon tool on the map.';
+    });
+
+    function updateBoundary(layer) {
+        const ring = layer.getLatLngs()[0].map(point => ({ lat: point.lat, lng: point.lng }));
+        if (ring.length > 0) {
+            const first = ring[0];
+            const last = ring[ring.length - 1];
+            if (first.lat !== last.lat || first.lng !== last.lng) ring.push({ lat: first.lat, lng: first.lng });
+        }
+        boundary = ring;
+        boundaryHint.textContent = ring.length >= 4 ? `${ring.length - 1} corners selected.` : 'Draw at least three corners.';
+    }
+
+    function setView(showJobs) {
+        createPanel.hidden = showJobs;
+        jobsPanel.hidden = !showJobs;
+        document.getElementById('newOrderTab').classList.toggle('active', !showJobs);
+        document.getElementById('jobsTab').classList.toggle('active', showJobs);
+        document.getElementById('mapTitle').textContent = showJobs ? 'Selected job area' : 'Draw the clearing area';
+        document.getElementById('mapHint').textContent = showJobs
+            ? 'A highlighted boundary shows the requested clearing area'
+            : 'Use the polygon tool to mark a closed area';
+        map.invalidateSize();
+        if (showJobs) loadJobs();
+    }
+
+    document.getElementById('newOrderTab').addEventListener('click', () => setView(false));
+    document.getElementById('jobsTab').addEventListener('click', () => setView(true));
+    document.getElementById('refreshJobs').addEventListener('click', loadJobs);
+
+    async function requestJson(url, options) {
+        const response = await fetch(url, options);
+        let body = {};
+        try { body = await response.json(); } catch (_) { /* A non-JSON error still gets a useful fallback. */ }
+        if (!response.ok) throw new Error(body.error || `Request failed (${response.status}).`);
+        return body;
+    }
+
+    document.getElementById('orderForm').addEventListener('submit', async event => {
+        event.preventDefault();
+        createFeedback.classList.remove('error');
+        createFeedback.textContent = '';
+        if (boundary.length < 4) {
+            showFeedback(createFeedback, 'Draw a closed area with at least three corners on the map.', true);
+            return;
+        }
+        const files = Array.from(document.getElementById('photos').files);
+        if (files.length > 5 || files.some(file => file.size > 10 * 1024 * 1024)) {
+            showFeedback(createFeedback, 'Choose at most 5 photos, with each photo no larger than 10 MB.', true);
+            return;
+        }
+
+        const formData = new FormData(event.currentTarget);
+        formData.delete('photos');
+        formData.set('boundary', JSON.stringify(boundary));
+        for (const file of files) formData.append('photos', file);
+        const submitButton = document.getElementById('submitOrder');
+        submitButton.disabled = true;
+        showFeedback(createFeedback, 'Posting your request…');
+        try {
+            const order = await requestJson('/api/orders', { method: 'POST', body: formData });
+            event.currentTarget.reset();
+            boundary = [];
+            drawingLayer.clearLayers();
+            boundaryHint.textContent = 'No area drawn yet. Use the polygon tool on the map.';
+            showFeedback(createFeedback, 'Request posted. Clearers can now review the area and claim the job.');
+            await loadJobs();
+            if (order.id) selectedOrderId = order.id;
+        } catch (error) {
+            showFeedback(createFeedback, error.message, true);
+        } finally {
+            submitButton.disabled = false;
+        }
+    });
+
+    async function loadJobs() {
+        showFeedback(jobsFeedback, 'Loading open requests…');
+        try {
+            openOrders = await requestJson('/api/orders');
+            jobList.replaceChildren();
+            if (openOrders.length === 0) {
+                jobList.append(makeElement('div', 'empty-state', 'No open requests at the moment. Refresh later to check for new work.'));
+                jobDetail.hidden = true;
+                orderLayer.clearLayers();
+            } else {
+                for (const order of openOrders) {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = `job-card${order.id === selectedOrderId ? ' selected' : ''}`;
+                    button.setAttribute('aria-label', `View job at ${order.address}`);
+                    button.append(makeElement('strong', '', order.address));
+                    button.append(makeElement('span', '', `${order.photoCount} photo${order.photoCount === 1 ? '' : 's'} · ${formatDate(order.createdAt)}`));
+                    button.append(makeElement('span', '', order.notes || 'No extra instructions provided.'));
+                    button.addEventListener('click', () => selectOrder(order.id));
+                    jobList.append(button);
+                }
+                showFeedback(jobsFeedback, '');
+                if (selectedOrderId && openOrders.some(order => order.id === selectedOrderId)) {
+                    await selectOrder(selectedOrderId);
+                } else {
+                    selectedOrderId = null;
+                    jobDetail.hidden = true;
+                    orderLayer.clearLayers();
+                }
+            }
+        } catch (error) {
+            jobList.replaceChildren(makeElement('div', 'empty-state', error.message));
+            showFeedback(jobsFeedback, '', true);
+        }
+    }
+
+    async function selectOrder(orderId) {
+        selectedOrderId = orderId;
+        document.querySelectorAll('.job-card').forEach(button => button.classList.remove('selected'));
+        const selectedAddress = openOrders.find(order => order.id === orderId)?.address;
+        const selectedButton = Array.from(document.querySelectorAll('.job-card'))
+            .find(button => button.querySelector('strong')?.textContent === selectedAddress);
+        if (selectedButton) selectedButton.classList.add('selected');
+        showFeedback(jobsFeedback, 'Loading job details…');
+        try {
+            const order = await requestJson(`/api/orders/${orderId}`);
+            renderOrderDetails(order);
+            showFeedback(jobsFeedback, '');
+        } catch (error) {
+            showFeedback(jobsFeedback, error.message, true);
+        }
+    }
+
+    function renderOrderDetails(order) {
+        jobDetail.replaceChildren();
+        jobDetail.hidden = false;
+        jobDetail.append(makeElement('h4', '', 'Request details'));
+        jobDetail.append(makeElement('p', 'detail-line', `Requested by ${order.customerName} · ${order.customerContact}`));
+        jobDetail.append(makeElement('p', 'detail-line', order.address));
+        jobDetail.append(makeElement('p', 'detail-line', order.notes || 'No additional instructions.'));
+
+        const photos = makeElement('div', 'photos');
+        for (const photo of order.photos) {
+            const image = document.createElement('img');
+            image.src = photo.url;
+            image.alt = photo.fileName;
+            image.loading = 'lazy';
+            photos.append(image);
+        }
+        if (order.photos.length > 0) jobDetail.append(photos);
+        if (order.status === 'OPEN') {
+            const claimForm = document.createElement('form');
+            claimForm.className = 'claim-form';
+            claimForm.append(makeElement('h4', '', 'Claim this job'));
+            claimForm.append(makeInputField('clearerName', 'Your name', 'text', 100));
+            claimForm.append(makeInputField('clearerContact', 'Phone or email', 'text', 200));
+            const button = makeElement('button', 'primary-button', 'Claim job');
+            button.type = 'submit';
+            claimForm.append(button);
+            claimForm.addEventListener('submit', async event => {
+                event.preventDefault();
+                button.disabled = true;
+                try {
+                    const data = new FormData(claimForm);
+                    await requestJson(`/api/orders/${order.id}/claim`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ clearerName: data.get('clearerName'), clearerContact: data.get('clearerContact') })
+                    });
+                    showFeedback(jobsFeedback, 'You claimed this job. Coordinate directly with the customer.');
+                    selectedOrderId = null;
+                    await loadJobs();
+                    renderOrderDetails(await requestJson(`/api/orders/${order.id}`));
+                } catch (error) {
+                    showFeedback(jobsFeedback, error.message, true);
+                    button.disabled = false;
+                    if (error.message.includes('already been claimed')) await loadJobs();
+                }
+            });
+            jobDetail.append(claimForm);
+        } else {
+            jobDetail.append(makeElement('p', 'detail-line', `Claimed by ${order.clearerName} · ${order.clearerContact}`));
+        }
+
+        orderLayer.clearLayers();
+        const points = order.boundary.map(point => [point.lat, point.lng]);
+        const polygon = L.polygon(points, { color: '#176f5d', fillColor: '#44a889', fillOpacity: .25, weight: 3 });
+        orderLayer.addLayer(polygon);
+        map.fitBounds(polygon.getBounds(), { padding: [24, 24], maxZoom: 17 });
+    }
+
+    function makeInputField(name, labelText, type, maxLength) {
+        const wrapper = makeElement('div', 'field');
+        const label = makeElement('label', '', labelText);
+        label.htmlFor = name;
+        const input = document.createElement('input');
+        input.id = name;
+        input.name = name;
+        input.type = type;
+        input.maxLength = maxLength;
+        input.required = true;
+        wrapper.append(label, input);
+        return wrapper;
+    }
+
+    function makeElement(tag, className, text) {
+        const element = document.createElement(tag);
+        if (className) element.className = className;
+        element.textContent = text;
+        return element;
+    }
+
+    function showFeedback(element, message, isError = false) {
+        element.textContent = message;
+        element.classList.toggle('error', isError);
+    }
+
+    function formatDate(value) {
+        if (!value) return '';
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+    }
+</script>
+</body>
+</html>
